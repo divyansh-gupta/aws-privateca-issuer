@@ -63,7 +63,13 @@ ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
 test: generate fmt vet lint manifests
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/v0.7.0/hack/setup-envtest.sh
-	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test ./... -coverprofile cover.out
+	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test -v ./pkg/... -coverprofile cover.out
+
+e2etest:
+	mkdir -p ${ENVTEST_ASSETS_DIR}
+	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/v0.7.0/hack/setup-envtest.sh
+	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test -v ./e2e/... -coverprofile cover.out
+
 
 # Build manager binary
 manager: generate fmt vet lint
@@ -206,6 +212,9 @@ e2e:
 .PHONY: runtests
 runtests: manager kind-cluster deploy-cert-manager docker-build kind-load deploy e2e kind-cluster-delete
 
+#Sets up a kind cluster using the latest commit on the current branch
+.PHONY: cluster
+cluster: manager kind-cluster deploy-cert-manager docker-build kind-load deploy
 # ==================================
 # Download: tools in ${BIN}
 # ==================================
