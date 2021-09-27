@@ -94,7 +94,7 @@ func createAccessKey(iamClient *iam.Client, ctx context.Context) (string, string
 	return *createKeyOutput.AccessKey.AccessKeyId, *createKeyOutput.AccessKey.SecretAccessKey, userName, *policyOutput.Policy.Arn
 }
 
-func deleteAccessKey(iamClient *iam.Client, ctx context.Context, userName string, policyArn string) {
+func deleteAccessKey(iamClient *iam.Client, ctx context.Context, userName string, accessKey string, policyArn string) {
 	detachParams := iam.DetachUserPolicyInput{
 		UserName:  aws.String(userName),
 		PolicyArn: aws.String(policyArn),
@@ -104,6 +104,17 @@ func deleteAccessKey(iamClient *iam.Client, ctx context.Context, userName string
 
 	if detachErr != nil {
 		panic(detachErr.Error())
+	}
+
+	deleteKeyParams := iam.DeleteAccessKeyInput{
+		AccessKeyId: aws.String(accessKey),
+		UserName:    aws.String(userName),
+	}
+
+	_, deleteKeyErr := iamClient.DeleteAccessKey(ctx, &deleteKeyParams)
+
+	if deleteKeyErr != nil {
+		panic(deleteKeyErr.Error())
 	}
 
 	deleteParams := iam.DeleteUserInput{
