@@ -23,7 +23,7 @@ type PolicyDocument struct {
 	Statement []StatementEntry
 }
 
-func createAccessKey(iamClient *iam.Client, ctx context.Context) (string, string, string, string) {
+func createUser(iamClient *iam.Client, ctx context.Context) (string, string) {
 	policy := PolicyDocument{
 		Version: "2012-10-17",
 		Statement: []StatementEntry{
@@ -57,11 +57,13 @@ func createAccessKey(iamClient *iam.Client, ctx context.Context) (string, string
 		panic(policyErr.Error())
 	}
 
+	policyArn := policyOutput.Policy.Arn
+
 	userName := "CMUser" + strconv.FormatInt(time.Now().Unix(), 10)
 
 	userParams := iam.CreateUserInput{
 		UserName:            aws.String(userName),
-		PermissionsBoundary: policyOutput.Policy.Arn,
+		PermissionsBoundary: policyArn,
 	}
 
 	_, userErr := iamClient.CreateUser(ctx, &userParams)
@@ -81,6 +83,10 @@ func createAccessKey(iamClient *iam.Client, ctx context.Context) (string, string
 		panic(attachErr.Error())
 	}
 
+	return userName, *policyArn
+}
+
+func createAccessKey(iamClient *iam.Client, ctx context.Context, userName string) (string, string) {
 	createKeyParams := iam.CreateAccessKeyInput{
 		UserName: aws.String(userName),
 	}
@@ -91,10 +97,10 @@ func createAccessKey(iamClient *iam.Client, ctx context.Context) (string, string
 		panic(createKeyErr.Error())
 	}
 
-	return *createKeyOutput.AccessKey.AccessKeyId, *createKeyOutput.AccessKey.SecretAccessKey, userName, *policyOutput.Policy.Arn
+	return *createKeyOutput.AccessKey.AccessKeyId, *createKeyOutput.AccessKey.SecretAccessKey
 }
 
-func deleteAccessKey(iamClient *iam.Client, ctx context.Context, userName string, accessKey string, policyArn string) {
+func deleteUser(iamClient *iam.Client, ctx context.Context, userName string, policyArn string) {
 	detachParams := iam.DetachUserPolicyInput{
 		UserName:  aws.String(userName),
 		PolicyArn: aws.String(policyArn),
@@ -106,6 +112,18 @@ func deleteAccessKey(iamClient *iam.Client, ctx context.Context, userName string
 		panic(detachErr.Error())
 	}
 
+	deleteParams := iam.DeleteUserInput{
+		UserName: aws.String(userName),
+	}
+
+	_, deleteErr := iamClient.DeleteUser(ctx, &deleteParams)
+
+	if deleteErr != nil {
+		panic(deleteErr.Error())
+	}
+}
+
+func deleteAccessKey(iamClient *iam.Client, ctx context.Context, userName string, accessKey string) {
 	deleteKeyParams := iam.DeleteAccessKeyInput{
 		AccessKeyId: aws.String(accessKey),
 		UserName:    aws.String(userName),
@@ -116,17 +134,6 @@ func deleteAccessKey(iamClient *iam.Client, ctx context.Context, userName string
 	if deleteKeyErr != nil {
 		panic(deleteKeyErr.Error())
 	}
-
-	deleteParams := iam.DeleteUserInput{
-		UserName: aws.String(userName),
-	}
-
-	_, deleteErr := iamClient.DeleteUser(ctx, &deleteParams)
-
-	if deleteErr != nil {
-		panic(deleteErr.Error())
-	}
-
 }
 
 func deleteCertificateAuthority(pcaClient *acmpca.Client, ctx context.Context, caArn string) {
@@ -255,6 +262,5 @@ func createCertificateAuthority(pcaClient *acmpca.Client, ctx context.Context, i
 		panic(importCertErr.Error())
 	}
 
-	//return the CA arn and
 	return *caArn
 }

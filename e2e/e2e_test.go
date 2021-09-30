@@ -83,9 +83,18 @@ func TestMain(m *testing.M) {
 
 	//Create an Access Key to be used for validiting auth via secret for an Issuer
 	iamClient := iam.NewFromConfig(cfg)
-	accessKey, secretKey, userName, policyArn = createAccessKey(iamClient, ctx)
 
-	log.Printf("Created User %s with policy arn %s", userName, policyArn)
+	userName, envExists := os.LookupEnv("PLUGIN_USER_NAME_OVERRIDE")
+
+	if !envExists {
+		userName, policyArn = createUser(iamClient, ctx)
+		log.Printf("Created User %s with policy arn %s", userName, policyArn)
+	} else {
+		log.Printf("Using User %s from PLUGIN_USER_NAME_OVERRIDE", userName)
+	}
+
+	accessKey, secretKey = createAccessKey(iamClient, ctx, userName)
+
 	//Run the tests
 	exitVal := m.Run()
 
@@ -97,8 +106,15 @@ func TestMain(m *testing.M) {
 	log.Printf("Delete the EC CA")
 
 	//Delete IAM User and policy
-	deleteAccessKey(iamClient, ctx, userName, accessKey, policyArn)
+	deleteAccessKey(iamClient, ctx, userName, accessKey)
 	log.Printf("Deleted the Access Key")
+
+	if !envExists {
+		deleteUser(iamClient, ctx, userName, policyArn)
+		log.Printf("Deleted the User and associated policy")
+	} else {
+		log.Printf("User %s was not deleted", userName)
+	}
 
 	//Exit
 	os.Exit(exitVal)
