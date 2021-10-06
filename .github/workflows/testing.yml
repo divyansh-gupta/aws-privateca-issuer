@@ -15,6 +15,7 @@ on:
 
 jobs:
   start-runner:
+  
     runs-on: ubuntu-latest
     outputs:
       label: ${{ steps.start-ec2-runner.outputs.label }}
