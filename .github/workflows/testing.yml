@@ -5,8 +5,8 @@ name: testing
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events but only for the master branch
-  pull_request:
-    branches: [ master ]
+  pull_request_target:
+    types: [ labeled ]
   push:
     branches: [ master ]
 
@@ -15,6 +15,7 @@ on:
 
 jobs:
   start-runner:
+    if: contains(github.event.pull_request.labels.*.name, 'safe to test')
     runs-on: ubuntu-latest
     outputs:
       label: ${{ steps.start-ec2-runner.outputs.label }}
@@ -57,6 +58,7 @@ jobs:
             ]
 
   do-the-job:
+    if: contains(github.event.pull_request.labels.*.name, 'safe to test')
     name: Do the job on the runner
     needs: start-runner # required to start the main job when the runner is ready
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
