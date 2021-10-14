@@ -13,5 +13,5 @@ jobs:
         fetch-depth: 0
     - name: Build the Docker image
       run: |
-        VERSION=$(shell git describe --tags)
+        VERSION=$(git describe --tags)
         docker build . --file Dockerfile --tag my-image-name:$VERSION
