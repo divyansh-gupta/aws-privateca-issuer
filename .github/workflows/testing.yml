@@ -7,6 +7,8 @@ on:
   # Triggers the workflow on push or pull request events but only for the master branch
   pull_request_target:
     types: [ labeled ]
+  push:
+    branches: [ master ]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -39,10 +41,10 @@ jobs:
           echo AMI=$AMI >> $GITHUB_ENV
       - name: Start EC2 runner
         id: start-ec2-runner
-        uses: divyansh-gupta/ec2-github-runner@19a4d0d1d58ce05615df1fc42e89418d43880ab9
+        uses: divyansh-gupta/ec2-github-runner@24843193808cfc63b06d2328786e7a87d8c06c81
         with:
           mode: start
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          github-token: GithubToken-test-us-east-1
           ec2-image-id: ${{ env.AMI }}
           ec2-instance-type: t3.medium
           subnet-id: ${{ env.SUBNET_ID }}
@@ -67,6 +69,8 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
+#           ref: ${{ github.event.pull_request.head.ref }}
+#           repository: ${{ github.event.pull_request.head.repo.full_name }}
       - name: Install Go
         run: |
           mkdir /home/ec2-user/.cache
@@ -119,10 +123,6 @@ jobs:
           echo HOME=$HOME >> $GITHUB_ENV
           make cluster
           make e2etest
-      - name: Upload to Pre-Prod ECR Repository if tests are successful
-        if: ${{ success() && github.event_name == 'push'}}
-        run: |
-          echo "Will implement pushing to Pre-Prod ECR Repository."
           
   stop-runner:
     name: Stop self-hosted EC2 runner
@@ -144,9 +144,9 @@ jobs:
           AWS_REGION=us-east-1
           echo AWS_REGION=$AWS_REGION >> $GITHUB_ENV
       - name: Stop EC2 runner
-        uses: divyansh-gupta/ec2-github-runner@19a4d0d1d58ce05615df1fc42e89418d43880ab9
+        uses: divyansh-gupta/ec2-github-runner@24843193808cfc63b06d2328786e7a87d8c06c81
         with:
           mode: stop
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          github-token: GithubToken-test-us-east-1
           label: ${{ needs.start-runner.outputs.label }}
           ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
