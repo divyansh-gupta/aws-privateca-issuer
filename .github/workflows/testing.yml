@@ -118,8 +118,10 @@ jobs:
       - name: Run tests
         run: |
           export PLUGIN_USER_NAME_OVERRIDE=K8sPluginUser-test-us-east-1
+          export PLUGIN_CROSS_ACCOUNT_ROLE=arn:aws:iam::874411242420:role/CrossAccountTestingRole-crossaccount-us-east-1
           export HOME=$GITHUB_WORKSPACE
           echo PLUGIN_USER_NAME_OVERRIDE=$PLUGIN_USER_NAME_OVERRIDE >> $GITHUB_ENV
+          echo PLUGIN_CROSS_ACCOUNT_ROLE=$PLUGIN_CROSS_ACCOUNT_ROLE >> $GITHUB_ENV
           echo HOME=$HOME >> $GITHUB_ENV
           make cluster
           make e2etest
