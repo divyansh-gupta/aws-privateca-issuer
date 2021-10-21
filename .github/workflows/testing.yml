@@ -123,9 +123,13 @@ jobs:
           echo PLUGIN_USER_NAME_OVERRIDE=$PLUGIN_USER_NAME_OVERRIDE >> $GITHUB_ENV
           echo PLUGIN_CROSS_ACCOUNT_ROLE=$PLUGIN_CROSS_ACCOUNT_ROLE >> $GITHUB_ENV
           echo HOME=$HOME >> $GITHUB_ENV
-          make fmt vet lint
-          make cluster
-          make e2etest
+          make test-no-irsa
+          make kind-cluster-delete
+          export OIDC_IAM_ROLE=IrsaTestingRole-test-us-east-1
+          export OIDC_S3_BUCKET_NAME=aws-privateca-issuer-irsa-test-us-east-1
+          echo OIDC_IAM_ROLE=$OIDC_IAM_ROLE >> $GITHUB_ENV
+          echo OIDC_S3_BUCKET_NAME=$OIDC_S3_BUCKET_NAME >> $GITHUB_ENV
+          make test-with-irsa
           
   stop-runner:
     name: Stop self-hosted EC2 runner
@@ -136,7 +140,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    # if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
     steps:
       - name: Setup AWS Credentials
         uses: divyansh-gupta/aws-assume-role@946699da34f5caa3a25d29c0b140ac04cbf9ef5c
