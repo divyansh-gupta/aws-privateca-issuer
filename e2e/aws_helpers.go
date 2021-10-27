@@ -385,7 +385,7 @@ func shareCA(ctx context.Context, cfg aws.Config, xaCfg aws.Config, xaCAArn stri
 	}
 
 	//Wait for policy propogation
-	time.Sleep(60 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	return *resourceOutput.ResourceShare.ResourceShareArn
 }

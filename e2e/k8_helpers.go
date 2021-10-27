@@ -16,7 +16,7 @@ import (
 )
 
 func waitForIssuerReady(ctx context.Context, client *clientV1beta1.Client, name string, namespace string) error {
-	return wait.PollImmediate(250*time.Millisecond, 2*time.Minute,
+	return wait.PollImmediate(500*time.Millisecond, time.Minute,
 		func() (bool, error) {
 
 			issuer, err := client.AWSPCAIssuers(namespace).Get(ctx, name, metav1.GetOptions{})
@@ -32,7 +32,7 @@ func waitForIssuerReady(ctx context.Context, client *clientV1beta1.Client, name 
 }
 
 func waitForClusterIssuerReady(ctx context.Context, client *clientV1beta1.Client, name string) error {
-	return wait.PollImmediate(250*time.Millisecond, 2*time.Minute,
+	return wait.PollImmediate(500*time.Millisecond, time.Minute,
 		func() (bool, error) {
 
 			issuer, err := client.AWSPCAClusterIssuers().Get(ctx, name, metav1.GetOptions{})
@@ -49,7 +49,7 @@ func waitForClusterIssuerReady(ctx context.Context, client *clientV1beta1.Client
 }
 
 func waitForCertificateReady(ctx context.Context, client *cmclientv1.CertmanagerV1Client, name string, namespace string) error {
-	return wait.PollImmediate(250*time.Millisecond, 2*time.Minute,
+	return wait.PollImmediate(500*time.Millisecond, time.Minute,
 		func() (bool, error) {
 
 			certificate, err := client.Certificates(namespace).Get(ctx, name, metav1.GetOptions{})
