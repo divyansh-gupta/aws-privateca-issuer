@@ -147,9 +147,10 @@ jobs:
     # if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
     steps:
       - name: Setup AWS Credentials
-        uses: divyansh-gupta/aws-assume-role@946699da34f5caa3a25d29c0b140ac04cbf9ef5c
+        uses: aws-actions/configure-aws-credentials@master
         with:
-          role_arn: arn:aws:iam::783680406432:role/GithubActionsTestingRole-test-us-east-1
+          role-to-assume: arn:aws:iam::783680406432:role/GithubActionsTestingRole-test-us-east-1
+          aws-region: us-east-1
       - name: Setup AWS Region
         run: |
           AWS_REGION=us-east-1
