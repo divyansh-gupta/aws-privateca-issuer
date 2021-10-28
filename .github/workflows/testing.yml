@@ -9,7 +9,6 @@ on:
     types: [ labeled ]
   push:
     branches: [ master ]
-
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -25,9 +24,10 @@ jobs:
       contents: read
     steps:
       - name: Setup AWS Credentials
-        uses: divyansh-gupta/aws-assume-role@946699da34f5caa3a25d29c0b140ac04cbf9ef5c
+        uses: aws-actions/configure-aws-credentials@master
         with:
-          role_arn: arn:aws:iam::783680406432:role/GithubActionsTestingRole-test-us-east-1
+          role-to-assume: arn:aws:iam::783680406432:role/GithubActionsTestingRole-test-us-east-1
+          aws-region: us-east-1
       - name: Configure EC2 Runner Parameters
         run: |
           AWS_REGION=us-east-1
