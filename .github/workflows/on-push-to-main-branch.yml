@@ -14,10 +14,12 @@ jobs:
       id-token: write
       contents: read
     steps:
-    - uses: actions/checkout@v2
+    - name: Check out code
+      uses: actions/checkout@v2
       with:
         fetch-depth: 0
-    - uses: docker/setup-buildx-action@v1
+    - name: Setup Dockerx
+      uses: docker/setup-buildx-action@v1
     - name: Setup AWS Credentials
       uses: aws-actions/configure-aws-credentials@master
       with:
