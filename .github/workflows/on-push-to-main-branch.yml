@@ -5,7 +5,7 @@ on:
     branches: [ master ]
 
 env:
-  ECR_REPO: public.ecr.aws/z0d6s8x8
+  ECR_REPO: public.ecr.aws
 
 jobs:
   build:
