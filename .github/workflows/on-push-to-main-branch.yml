@@ -6,7 +6,6 @@ on:
 
 env:
   ECR_REPO: public.ecr.aws/z0d6s8x8
-  TAG_BASE: divyansh-gupta-aws-privateca-issuer-test
 
 jobs:
   build:
@@ -27,17 +26,19 @@ jobs:
     - name: Login to ECR
       run: |
         aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REPO
-    - name: Get Version for tagging
+    - name: Setup Push to ECR
       run: |
         export VERSION=$(git describe --tags)
+        export TEST_BASE=$(cat $GITHUB_REPOSITORY | sed s/\//-/)-test
         echo VERSION=$VERSION >> $GITHUB_ENV
+        echo TEST_BASE=$TEST_BASE >> $GITHUB_ENV
     - name: Build and push container images
       uses: docker/build-push-action@v2
       with:
         context: .
         tags: |
-          ${{TAG_BASE}}:latest
-          ${{TAG_BASE}}:${{VERSION}}
+          divyansh-gupta-aws-privateca-issuer-test:latest
+          divyansh-gupta-aws-privateca-issuer-test:$VERSION
           
           #ghcr.io/jniebuhr/aws-pca-issuer:latest
           #ghcr.io/jniebuhr/aws-pca-issuer:${{steps.tag.outputs.tag}}
