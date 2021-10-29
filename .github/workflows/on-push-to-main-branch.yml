@@ -27,6 +27,8 @@ jobs:
       uses: docker/login-action@v1
       with:
         registry: ${{ env.ECR_REPO }}
+      env:
+        AWS_REGION: us-east-1
     - name: Setup Push to ECR
       run: |
         export VERSION=$(git describe --tags)
