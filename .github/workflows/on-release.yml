@@ -3,6 +3,7 @@ on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
 
 env:
   ECR_REPO: public.ecr.aws/k1n1h4h4
