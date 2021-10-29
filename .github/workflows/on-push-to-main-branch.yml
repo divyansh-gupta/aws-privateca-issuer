@@ -29,14 +29,14 @@ jobs:
     - name: Setup Push to ECR
       run: |
         export VERSION=$(git describe --tags)
-        export TEST_BASE=$(echo $GITHUB_REPOSITORY | sed s#/#-#)-test
+        export TAG_BASE=$(echo $GITHUB_REPOSITORY | sed s#/#-#)-test
         echo VERSION=$VERSION >> $GITHUB_ENV
-        echo TEST_BASE=$TEST_BASE >> $GITHUB_ENV
+        echo TAG_BASE=$TAG_BASE >> $GITHUB_ENV
     - name: Build and push container images
       uses: docker/build-push-action@v2
       with:
         context: .
         tags: |
-          divyansh-gupta-aws-privateca-issuer-test:latest
-          divyansh-gupta-aws-privateca-issuer-test:${{ env.VERSION }}
+          ${{ env.TAG_BASE }}:latest
+          ${{ env.TAG_BASE }}:${{ env.VERSION }}
         push: false
