@@ -181,18 +181,71 @@ bundle-build:
 # ==================================
 # E2E testing
 # ==================================
+
+REGISTRY_NAME := "kind-registry"
+REGISTRY_PORT := 5000
+LOCAL_IMAGE := "localhost:${REGISTRY_PORT}/aws-privateca-issuer"
+NAMESPACE := aws-privateca-issuer
+SERVICE_ACCOUNT := ${NAMESPACE}-sa
+
+create-local-registry:
+	RUNNING=$$(docker inspect -f '{{.State.Running}}' ${REGISTRY_NAME} 2>/dev/null || true)
+	if [ "$$RUNNING" != 'true' ]; then
+		docker run -d --restart=always -p "127.0.0.1:${REGISTRY_PORT}:5000" --name ${REGISTRY_NAME} registry:2
+	fi
+
+docker-push-local:
+	docker tag ${IMG} ${LOCAL_IMAGE}
+	docker push ${LOCAL_IMAGE}
+
 .PHONY: kind-cluster
 kind-cluster: ## Use Kind to create a Kubernetes cluster for E2E tests
 kind-cluster: ${KIND}
-	 ${KIND} get clusters | grep ${K8S_CLUSTER_NAME} || ${KIND} create cluster --name ${K8S_CLUSTER_NAME}
+	if [[ -z "$$OIDC_S3_BUCKET_NAME" ]]; then \
+		echo "OIDC_S3_BUCKET_NAME env var is not set, the cluster will not be enabled for IRSA"; \
+		echo "If you wish to have IRSA enabled, recreate the cluster with OIDC_S3_BUCKET_NAME  set"; \
+		cp e2e/kind_config/config.yaml /tmp/config.yaml;
+	else \
+		cat e2e/kind_config/config.yaml | sed "s/S3_BUCKET_NAME_PLACEHOLDER/$$OIDC_S3_BUCKET_NAME/g" \
+		> /tmp/config.yaml
+	fi
+
+	${KIND} get clusters | grep ${K8S_CLUSTER_NAME} || \
+	${KIND} create cluster --name ${K8S_CLUSTER_NAME} --config=/tmp/config.yaml
+	docker network connect "kind" ${REGISTRY_NAME} || true
+	kubectl apply -f e2e/kind_config/registry_configmap.yaml
+	#Create namespace and service account
+	kubectl get namespace ${NAMESPACE} || kubectl create namespace ${NAMESPACE}
+	kubectl get serviceaccount ${SERVICE_ACCOUNT} -n ${NAMESPACE} || \
+	kubectl create serviceaccount ${SERVICE_ACCOUNT} -n ${NAMESPACE}
+
+.PHONY: setup-eks-webhook
+setup-eks-webhook:
+	#Ensure that there is a OIDC role and S3 bucket available
+	if [[ -z "$$OIDC_S3_BUCKET_NAME" || -z "$$OIDC_IAM_ROLE" ]]; then \
+		echo "Please set OIDC_S3_BUCKET_NAME and  OIDC_IAM_ROLE to use IRSA"; \
+		exit 1; \
+	fi
+	#Get open id configuration from API server
+	kubectl apply -f e2e/kind_config/unauth_role.yaml
+	APISERVER=$$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+	TOKEN=$$(kubectl get secret $(kubectl get serviceaccount default -o jsonpath='{.secrets[0].name}') -o jsonpath='{.data.token}' | base64 --decode )
+	curl $$APISERVER/.well-known/openid-configuration --header "Authorization: Bearer $$TOKEN" --insecure -o openid-configuration
+	curl $$APISERVER/openid/v1/jwks --header "Authorization: Bearer $$TOKEN" --insecure -o jwks
+	#Put idP configuration in public S3 bucket
+	aws s3 cp --acl public-read jwks s3://$$OIDC_S3_BUCKET_NAME/cluster/my-oidc-cluster/openid/v1/jwks
+	aws s3 cp --acl public-read openid-configuration s3://$$OIDC_S3_BUCKET_NAME/cluster/my-oidc-cluster/.well-known/openid-configuration
+	sleep 60
+	kubectl apply -f e2e/kind_config/install_eks.yaml
+	kubectl wait --for=condition=Available --timeout 300s deployment pod-identity-webhook
+	kubectl annotate serviceaccount ${SERVICE_ACCOUNT} -n ${NAMESPACE} eks.amazonaws.com/role-arn=$$OIDC_IAM_ROLE
+
+.PHONY: install-eks-webhook
+install-eks-webhook: setup-eks-webhook upgrade-local
 
 .PHONY: kind-cluster-delete
 kind-cluster-delete:
 	${KIND} delete cluster --name ${K8S_CLUSTER_NAME}
-
-.PHONY: kind-load
-kind-load: ## Load all the Docker images into Kind
-	${KIND} load docker-image --name ${K8S_CLUSTER_NAME} ${IMG}
 
 .PHONY: kind-export-logs
 kind-export-logs:
@@ -203,9 +256,25 @@ deploy-cert-manager: ## Deploy cert-manager in the configured Kubernetes cluster
 	kubectl apply --filename=https://github.com/jetstack/cert-manager/releases/download/v${CERT_MANAGER_VERSION}/cert-manager.yaml
 	kubectl wait --for=condition=Available --timeout=300s apiservice v1.cert-manager.io
 
+.PHONY: install-local
+install-local: docker-build docker-push-local
+	helm repo add awspca https://cert-manager.github.io/aws-privateca-issuer
+	#install plugin from local docker repo
+	helm install aws-privateca-issuer awspca/aws-privateca-issuer -n ${NAMESPACE} \
+	--set serviceAccount.create=false --set serviceAccount.name=${SERVICE_ACCOUNT} \
+	--set image.repository=${LOCAL_IMAGE} --set image.tag=latest --set image.pullPolicy=Always
+
+.PHONY: uninstall-local
+uninstall-local:
+	helm uninstall aws-privateca-issuer -n ${NAMESPACE}
+
+.PHONY: upgrade-local
+upgrade-local: uninstall-local docker-build docker-push-local install-local
+
 #Sets up a kind cluster using the latest commit on the current branch
 .PHONY: cluster
-cluster: manager kind-cluster deploy-cert-manager docker-build kind-load deploy
+cluster: manager kind-cluster deploy-cert-manager create-local-registry install-local
+
 # ==================================
 # Download: tools in ${BIN}
 # ==================================

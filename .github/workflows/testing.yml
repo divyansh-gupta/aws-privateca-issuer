@@ -124,16 +124,15 @@ jobs:
           echo PLUGIN_CROSS_ACCOUNT_ROLE=$PLUGIN_CROSS_ACCOUNT_ROLE >> $GITHUB_ENV
           echo HOME=$HOME >> $GITHUB_ENV
           
-          make fmt vet lint
-          make cluster
-          make e2etest
-          #make test-no-irsa
-          #make kind-cluster-delete
-          #export OIDC_IAM_ROLE=IrsaTestingRole-test-us-east-1
-          #export OIDC_S3_BUCKET_NAME=aws-privateca-issuer-irsa-test-us-east-1
-          #echo OIDC_IAM_ROLE=$OIDC_IAM_ROLE >> $GITHUB_ENV
-          #echo OIDC_S3_BUCKET_NAME=$OIDC_S3_BUCKET_NAME >> $GITHUB_ENV
-          #make test-with-irsa
+          make cluster && make e2etest #testing ec2 instance roles and k8 secret
+          
+          make kind-cluster-delete
+          
+          export OIDC_IAM_ROLE=IrsaTestingRole-test-us-east-1
+          export OIDC_S3_BUCKET_NAME=aws-privateca-issuer-irsa-test-us-east-1
+          echo OIDC_IAM_ROLE=$OIDC_IAM_ROLE >> $GITHUB_ENV
+          echo OIDC_S3_BUCKET_NAME=$OIDC_S3_BUCKET_NAME >> $GITHUB_ENV
+          make cluster && make install-eks-webhook && make e2etest #testing irsa and k8 secret
           
   stop-runner:
     name: Stop self-hosted EC2 runner

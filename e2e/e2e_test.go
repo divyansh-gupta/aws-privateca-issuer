@@ -236,6 +236,18 @@ func TestClusterIssuers(t *testing.T) {
 
 	//compose issuers
 	for index, specs := range issuerSpecs {
+
+		//Create issuer without secret (IRSA/EC2 instance profiles)
+		issuerName := "cluster-issuer-" + strconv.Itoa(index) + "-" + currentTime
+
+		issuer := v1beta1.AWSPCAClusterIssuer{
+			ObjectMeta: metav1.ObjectMeta{Name: issuerName},
+			Spec:       specs,
+		}
+
+		clusterIssuers = append(clusterIssuers, issuer)
+
+		//Create issuer with secret
 		specs.SecretRef = v1beta1.AWSCredentialsSecretReference{
 			SecretReference: v1.SecretReference{
 				Name:      secretName,
@@ -243,9 +255,9 @@ func TestClusterIssuers(t *testing.T) {
 			},
 		}
 
-		issuerName := "cluster-issuer-" + strconv.Itoa(index) + "-" + currentTime
+		issuerName = issuerName + "-secret"
 
-		issuer := v1beta1.AWSPCAClusterIssuer{
+		issuer = v1beta1.AWSPCAClusterIssuer{
 			ObjectMeta: metav1.ObjectMeta{Name: issuerName},
 			Spec:       specs,
 		}
@@ -366,6 +378,16 @@ func TestNamespaceIssuers(t *testing.T) {
 
 	//compose issuers
 	for index, specs := range issuerSpecs {
+		issuerName := "ns-issuer-" + strconv.Itoa(index) + "-" + currentTime
+
+		issuer := v1beta1.AWSPCAIssuer{
+			ObjectMeta: metav1.ObjectMeta{Name: issuerName},
+			Spec:       specs,
+		}
+
+		namespaceIssuers = append(namespaceIssuers, issuer)
+
+		//Create issuer with secret
 		specs.SecretRef = v1beta1.AWSCredentialsSecretReference{
 			SecretReference: v1.SecretReference{
 				Name:      secretName,
@@ -373,9 +395,9 @@ func TestNamespaceIssuers(t *testing.T) {
 			},
 		}
 
-		issuerName := "ns-issuer-" + strconv.Itoa(index) + "-" + currentTime
+		issuerName = issuerName + "-secret"
 
-		issuer := v1beta1.AWSPCAIssuer{
+		issuer = v1beta1.AWSPCAIssuer{
 			ObjectMeta: metav1.ObjectMeta{Name: issuerName},
 			Spec:       specs,
 		}
