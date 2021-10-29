@@ -115,6 +115,9 @@ jobs:
       - name: Install Jq
         run: |
           sudo yum install jq -y
+      - name: Install Helm
+        run: |
+          curl -sSL https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
       - name: Run tests
         run: |
           export PLUGIN_USER_NAME_OVERRIDE=K8sPluginUser-test-us-east-1
