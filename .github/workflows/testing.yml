@@ -118,7 +118,7 @@ jobs:
       - name: Install Helm
         run: |
           curl -sSL https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-      - name: Run tests
+      - name: Setup test environment
         run: |
           export PLUGIN_USER_NAME_OVERRIDE=K8sPluginUser-test-us-east-1
           export PLUGIN_CROSS_ACCOUNT_ROLE=arn:aws:iam::874411242420:role/CrossAccountTestingRole-crossaccount-us-east-1
@@ -126,16 +126,18 @@ jobs:
           echo PLUGIN_USER_NAME_OVERRIDE=$PLUGIN_USER_NAME_OVERRIDE >> $GITHUB_ENV
           echo PLUGIN_CROSS_ACCOUNT_ROLE=$PLUGIN_CROSS_ACCOUNT_ROLE >> $GITHUB_ENV
           echo HOME=$HOME >> $GITHUB_ENV
-          
-          make cluster && make e2etest #testing ec2 instance roles and k8 secret
-          
+      - name: Run test cases with EC2 Instance Profiles and K8s Secret
+        run: |
+          make cluster && make e2etest
           make kind-cluster-delete
-          
+      - name: Run test cases with IRSA and K8s Secret
+        if: ${{ always() }}
+        run: |
           export OIDC_IAM_ROLE=IrsaTestingRole-test-us-east-1
           export OIDC_S3_BUCKET_NAME=aws-privateca-issuer-irsa-test-us-east-1
           echo OIDC_IAM_ROLE=$OIDC_IAM_ROLE >> $GITHUB_ENV
           echo OIDC_S3_BUCKET_NAME=$OIDC_S3_BUCKET_NAME >> $GITHUB_ENV
-          make cluster && make install-eks-webhook && make e2etest #testing irsa and k8 secret
+          make cluster && make install-eks-webhook && make e2etest
           
   stop-runner:
     name: Stop self-hosted EC2 runner
