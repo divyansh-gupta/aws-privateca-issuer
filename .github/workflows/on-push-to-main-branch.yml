@@ -42,4 +42,4 @@ jobs:
         tags: |
           ${{ env.TAG_BASE }}:latest
           ${{ env.TAG_BASE }}:${{ env.VERSION }}
-        push: false
+        push: true
