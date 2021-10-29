@@ -36,8 +36,8 @@ jobs:
       with:
         context: .
         tags: |
-          $TAG_BASE:latest
-          $TAG_BASE:$VERSION
+          ${{TAG_BASE}}:latest
+          ${{TAG_BASE}}:${{VERSION}}
           
           #ghcr.io/jniebuhr/aws-pca-issuer:latest
           #ghcr.io/jniebuhr/aws-pca-issuer:${{steps.tag.outputs.tag}}
