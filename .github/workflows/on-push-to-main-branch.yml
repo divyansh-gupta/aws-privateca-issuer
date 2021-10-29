@@ -23,9 +23,10 @@ jobs:
       with:
         role-to-assume: arn:aws:iam::783680406432:role/GithubActionsPublishRole-test-us-east-1
         aws-region: us-east-1
-    - name: Login to ECR
-      run: |
-        aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REPO
+    - name: Login to Public ECR
+      uses: docker/login-action@v1
+      with:
+        registry: ${{ env.ECR_REPO }}
     - name: Setup Push to ECR
       run: |
         export VERSION=$(git describe --tags)
