@@ -193,6 +193,7 @@ create-local-registry:
 	if [ "$$RUNNING" != 'true' ]; then
 		docker run -d --restart=always -p "127.0.0.1:${REGISTRY_PORT}:5000" --name ${REGISTRY_NAME} registry:2
 	fi
+	sleep 15
 
 docker-push-local:
 	docker tag ${IMG} ${LOCAL_IMAGE}
@@ -260,6 +261,7 @@ deploy-cert-manager: ## Deploy cert-manager in the configured Kubernetes cluster
 install-local: docker-build docker-push-local
 	helm repo add awspca https://cert-manager.github.io/aws-privateca-issuer
 	#install plugin from local docker repo
+	sleep 15
 	helm install aws-privateca-issuer awspca/aws-privateca-issuer -n ${NAMESPACE} \
 	--set serviceAccount.create=false --set serviceAccount.name=${SERVICE_ACCOUNT} \
 	--set image.repository=${LOCAL_IMAGE} --set image.tag=latest --set image.pullPolicy=Always
@@ -269,7 +271,7 @@ uninstall-local:
 	helm uninstall aws-privateca-issuer -n ${NAMESPACE}
 
 .PHONY: upgrade-local
-upgrade-local: uninstall-local docker-build docker-push-local install-local
+upgrade-local: uninstall-local install-local
 
 #Sets up a kind cluster using the latest commit on the current branch
 .PHONY: cluster
