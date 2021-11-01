@@ -275,7 +275,7 @@ upgrade-local: uninstall-local install-local
 
 #Sets up a kind cluster using the latest commit on the current branch
 .PHONY: cluster
-cluster: manager kind-cluster deploy-cert-manager create-local-registry install-local
+cluster: manager create-local-registry kind-cluster deploy-cert-manager install-local
 
 # ==================================
 # Download: tools in ${BIN}
