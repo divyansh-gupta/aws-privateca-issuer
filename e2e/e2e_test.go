@@ -30,14 +30,24 @@ var (
 	cmClient         *cmclientv1.CertmanagerV1Client
 	clientset        *kubernetes.Clientset
 	xaCfg            aws.Config
-	issuerSpecs      []v1beta1.AWSPCAIssuerSpec
-	certificateSpecs []cmv1.CertificateSpec
+	issuerSpecs      []issuerTemplate
+	certificateSpecs []certTemplate
 
 	rsaCaArn, ecCaArn, xaCAArn, accessKey, secretKey, policyArn, resourceShareArn string
 
 	region = "us-east-1"
 	ctx    = context.TODO()
 )
+
+type issuerTemplate struct {
+	spec       v1beta1.AWSPCAIssuerSpec
+	issuerName string
+}
+
+type certTemplate struct {
+	spec     cmv1.CertificateSpec
+	certName string
+}
 
 func TestMain(m *testing.M) {
 	/*
@@ -120,55 +130,72 @@ func TestMain(m *testing.M) {
 	* validing Cluster and Namepsace issuers
 	 */
 
-	issuerSpecs = []v1beta1.AWSPCAIssuerSpec{
+	issuerSpecs = []issuerTemplate{
 		//Basic RSA Issuer
 		{
-			Arn:    rsaCaArn,
-			Region: region,
+			issuerName: "rsa-issuer",
+			spec: v1beta1.AWSPCAIssuerSpec{
+				Arn:    rsaCaArn,
+				Region: region,
+			},
 		},
 		//Basic EC Issuer
 		{
-			Arn:    ecCaArn,
-			Region: region,
+			issuerName: "ec-issuer",
+			spec: v1beta1.AWSPCAIssuerSpec{
+				Arn:    ecCaArn,
+				Region: region,
+			},
 		},
 	}
 
 	if xaRoleExists {
 		//XA CA Issuer
-		xaCASpec := v1beta1.AWSPCAIssuerSpec{
-			Arn:    xaCAArn,
-			Region: region,
+		xaCASpec := issuerTemplate{
+			issuerName: "crossaccount-issuer",
+			spec: v1beta1.AWSPCAIssuerSpec{
+				Arn:    xaCAArn,
+				Region: region,
+			},
 		}
 		issuerSpecs = append(issuerSpecs, xaCASpec)
 	}
 
-	certificateSpecs = []cmv1.CertificateSpec{
+	certificateSpecs = []certTemplate{
 		//Basic EC Certificate
 		{
-			Subject: &cmv1.X509Subject{
-				Organizations: []string{"aws"},
-			},
-			DNSNames: []string{"ec-cert.aws.com"},
-			PrivateKey: &cmv1.CertificatePrivateKey{
-				Algorithm: cmv1.ECDSAKeyAlgorithm,
-				Size:      256,
-			},
-			Duration: &metav1.Duration{
-				Duration: 721 * time.Hour,
+			certName: "ec-cert",
+			spec: cmv1.CertificateSpec{
+				Subject: &cmv1.X509Subject{
+					Organizations: []string{"aws"},
+				},
+				DNSNames: []string{"ec-cert.aws.com"},
+				PrivateKey: &cmv1.CertificatePrivateKey{
+					Algorithm: cmv1.ECDSAKeyAlgorithm,
+					Size:      256,
+				},
+				Duration: &metav1.Duration{
+					Duration: 721 * time.Hour,
+				},
+				Usages: []cmv1.KeyUsage{cmv1.UsageClientAuth, cmv1.UsageServerAuth},
 			},
 		},
 		//Basic RSA Certificate
 		{
-			Subject: &cmv1.X509Subject{
-				Organizations: []string{"aws"},
-			},
-			DNSNames: []string{"rsa-cert.aws.com"},
-			PrivateKey: &cmv1.CertificatePrivateKey{
-				Algorithm: cmv1.RSAKeyAlgorithm,
-				Size:      2048,
-			},
-			Duration: &metav1.Duration{
-				Duration: 721 * time.Hour,
+			certName: "rsa-cert",
+			spec: cmv1.CertificateSpec{
+				Subject: &cmv1.X509Subject{
+					Organizations: []string{"aws"},
+				},
+				DNSNames: []string{"rsa-cert.aws.com"},
+				PrivateKey: &cmv1.CertificatePrivateKey{
+					Algorithm: cmv1.RSAKeyAlgorithm,
+					Size:      2048,
+				},
+				Duration: &metav1.Duration{
+					Duration: 721 * time.Hour,
+				},
+				Usages: []cmv1.KeyUsage{cmv1.UsageClientAuth, cmv1.UsageServerAuth},
 			},
 		},
 	}
@@ -235,20 +262,20 @@ func TestClusterIssuers(t *testing.T) {
 	clusterIssuers := []v1beta1.AWSPCAClusterIssuer{}
 
 	//compose issuers
-	for index, specs := range issuerSpecs {
+	for _, template := range issuerSpecs {
 
 		//Create issuer without secret (IRSA/EC2 instance profiles)
-		issuerName := "cluster-issuer-" + strconv.Itoa(index) + "-" + currentTime
+		issuerName := currentTime + "--" + template.issuerName
 
 		issuer := v1beta1.AWSPCAClusterIssuer{
 			ObjectMeta: metav1.ObjectMeta{Name: issuerName},
-			Spec:       specs,
+			Spec:       template.spec,
 		}
 
 		clusterIssuers = append(clusterIssuers, issuer)
 
 		//Create issuer with secret
-		specs.SecretRef = v1beta1.AWSCredentialsSecretReference{
+		template.spec.SecretRef = v1beta1.AWSCredentialsSecretReference{
 			SecretReference: v1.SecretReference{
 				Name:      secretName,
 				Namespace: "default",
@@ -259,7 +286,7 @@ func TestClusterIssuers(t *testing.T) {
 
 		issuer = v1beta1.AWSPCAClusterIssuer{
 			ObjectMeta: metav1.ObjectMeta{Name: issuerName},
-			Spec:       specs,
+			Spec:       template.spec,
 		}
 
 		clusterIssuers = append(clusterIssuers, issuer)
@@ -268,6 +295,8 @@ func TestClusterIssuers(t *testing.T) {
 	for _, clusterIssuer := range clusterIssuers {
 
 		issuerName := clusterIssuer.ObjectMeta.Name
+
+		log.Print("----------")
 
 		log.Printf("Testing issuer: %s", issuerName)
 
@@ -286,14 +315,14 @@ func TestClusterIssuers(t *testing.T) {
 		//compose certificates
 		certificates := []cmv1.Certificate{}
 
-		for index, specs := range certificateSpecs {
-			certificateName := "cluster-cert-" + strconv.Itoa(index) + "-" + currentTime
+		for _, template := range certificateSpecs {
+			certificateName := issuerName + "-" + template.certName
 
-			secretName := certificateName + "-" + "secret"
+			secretName := certificateName + "-cert-secret"
 
-			specs.SecretName = secretName
+			template.spec.SecretName = secretName
 
-			specs.IssuerRef = cmmeta.ObjectReference{
+			template.spec.IssuerRef = cmmeta.ObjectReference{
 				Kind:  "AWSPCAClusterIssuer",
 				Group: "awspca.cert-manager.io",
 				Name:  issuerName,
@@ -301,7 +330,7 @@ func TestClusterIssuers(t *testing.T) {
 
 			certificate := cmv1.Certificate{
 				ObjectMeta: metav1.ObjectMeta{Name: certificateName},
-				Spec:       specs,
+				Spec:       template.spec,
 			}
 
 			certificates = append(certificates, certificate)
@@ -377,18 +406,18 @@ func TestNamespaceIssuers(t *testing.T) {
 	namespaceIssuers := []v1beta1.AWSPCAIssuer{}
 
 	//compose issuers
-	for index, specs := range issuerSpecs {
-		issuerName := "ns-issuer-" + strconv.Itoa(index) + "-" + currentTime
+	for _, template := range issuerSpecs {
+		issuerName := currentTime + "--" + template.issuerName
 
 		issuer := v1beta1.AWSPCAIssuer{
 			ObjectMeta: metav1.ObjectMeta{Name: issuerName},
-			Spec:       specs,
+			Spec:       template.spec,
 		}
 
 		namespaceIssuers = append(namespaceIssuers, issuer)
 
 		//Create issuer with secret
-		specs.SecretRef = v1beta1.AWSCredentialsSecretReference{
+		template.spec.SecretRef = v1beta1.AWSCredentialsSecretReference{
 			SecretReference: v1.SecretReference{
 				Name:      secretName,
 				Namespace: namespaceName,
@@ -399,7 +428,7 @@ func TestNamespaceIssuers(t *testing.T) {
 
 		issuer = v1beta1.AWSPCAIssuer{
 			ObjectMeta: metav1.ObjectMeta{Name: issuerName},
-			Spec:       specs,
+			Spec:       template.spec,
 		}
 
 		namespaceIssuers = append(namespaceIssuers, issuer)
@@ -408,6 +437,8 @@ func TestNamespaceIssuers(t *testing.T) {
 	for _, namespaceIssuer := range namespaceIssuers {
 
 		issuerName := namespaceIssuer.ObjectMeta.Name
+
+		log.Print("----------")
 
 		log.Printf("Testing issuer: %s", issuerName)
 
@@ -426,14 +457,14 @@ func TestNamespaceIssuers(t *testing.T) {
 		//compose certificates
 		certificates := []cmv1.Certificate{}
 
-		for index, specs := range certificateSpecs {
-			certificateName := "ns-cert-" + strconv.Itoa(index) + "-" + currentTime
+		for _, template := range certificateSpecs {
+			certificateName := issuerName + "-" + template.certName
 
-			secretName := certificateName + "-" + "secret"
+			secretName := certificateName + "-cert-secret"
 
-			specs.SecretName = secretName
+			template.spec.SecretName = secretName
 
-			specs.IssuerRef = cmmeta.ObjectReference{
+			template.spec.IssuerRef = cmmeta.ObjectReference{
 				Kind:  "AWSPCAIssuer",
 				Group: "awspca.cert-manager.io",
 				Name:  issuerName,
@@ -441,7 +472,7 @@ func TestNamespaceIssuers(t *testing.T) {
 
 			certificate := cmv1.Certificate{
 				ObjectMeta: metav1.ObjectMeta{Name: certificateName},
-				Spec:       specs,
+				Spec:       template.spec,
 			}
 
 			certificates = append(certificates, certificate)
