@@ -127,7 +127,7 @@ Before running ```make cluster``` we will need to do the following:
 
 \- An S3 Bucket with [BPA disabled](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html) in us-east-1. After creating the bucket run ```export OIDC_S3_BUCKET_NAME=<Name of bucket you just created```
 
-\- [An AWS IAM OIDC Provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html). Set the provider url of the bucket to be ```$OIDC_S3_BUCKET_NAME.s3.us-east-1.amazonaws.com/cluster/my-oidc-cluster]```. Set the audience to be ```sts.amazonaws.com```. Before creating the OIDC provider, set a temporary value for $OIDC_IAM_ROLE (```export OIDC_IAM_ROLE=arn:aws:iam::000000000000:role/oidc-kind-cluster-role``` and run ```make cluster && make install-eks-cluster && make kind-cluster-delete```). This needs to be done otherwise you may see an error complaining about the absense of a file .well-known/openid-configuration. 
+\- [An AWS IAM OIDC Provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html). Set the provider url of the bucket to be ```$OIDC_S3_BUCKET_NAME.s3.us-east-1.amazonaws.com/cluster/my-oidc-cluster]```. Set the audience to be ```sts.amazonaws.com```. Before creating the OIDC provider, set a temporary value for $OIDC_IAM_ROLE (```export OIDC_IAM_ROLE=arn:aws:iam::000000000000:role/oidc-kind-cluster-role``` and run ```make cluster && make install-eks-cluster && make kind-cluster-delete```). This needs to be done otherwise you may see an error complaining about the absense of a file .well-known/openid-configuration. Running these commands helps bootstrap the S3 bucket so that the OIDC provider can be created.
 
 \- An IAM role that has a trust relationship with the IAM OIDC Provider that was just created. An inline policy for this role can be grabbed from [Configuration](#configuration) except you can't scope it to a particular CA since those will be created during the test run. This role will be used to test authentication in the plugin via IRSA. The trust relationship should look something like:
 ```
@@ -152,13 +152,14 @@ Before running ```make cluster``` we will need to do the following:
 After creating this role run ```export OIDC_IAM_ROLE=<IAM role arn you created above>```
 
 \- You will need AWS credentials loaded into your terminal that, via the CLI, minimally allow the following actions via an IAM policy:
-- ```acm-pca*``` : This is so that Private CA's maybe be created and deleted via the appropriate APIs for testing
-- If you did not provider a user via PLUGIN_USER_NAME_OVERRIDE, the test suite can create a user for you. This will require the following permissions: -- - ```iam:CreatePolicy``` and ```iam:CreateUser``` and ```iam:AttachUserPolicy```
+- ```acm-pca:*``` : This is so that Private CA's maybe be created and deleted via the appropriate APIs for testing
+- If you did not provider a user via PLUGIN_USER_NAME_OVERRIDE, the test suite can create a user for you. This will require the following permissions: ```iam:CreatePolicy```,```iam:CreateUser```, and ```iam:AttachUserPolicy```
 - ```iam:CreateAccessKey``` and ```iam:DeleteAccessKey```: This allow us to create and delete access keys to be used to validate that authentication via K8 secrets is functional. If the user was set via $PLUGIN_USER_NAME_OVERRIDE
 - ```s3:PutObject``` and ```s3::PutObjectAcl``` these can be scoped down the the s3 bucket you created above
 
 \- ```make install-eks-webhook``` will install a webhook in that kind cluster that will enable the use of IRSA
-\- ```make e2etest``` will run against the kind cluster created via ```make cluster```
+
+\- ```make e2etest``` will run end-to-end test against the kind cluster created via ```make cluster```. 
 
 Getting IRSA to work on Kind was heavily inspired by the following blog: https://reece.tech/posts/oidc-k8s-to-aws/
 
@@ -168,8 +169,7 @@ Soon these test should be automatically run on each PR, but for the time being e
 
 The test are fairly straightforward, they will take a set of "issuer templates" (Base name for a aws-pca-issuer as well as a AWSIssuerSpec) and a set of "certificate templates" (Base name for type of certificate as well as a certificate spec). The tests will then take every certificate spec and apply it to each issuer spec. The test will ensure all issuers made from issuer specs reach a ready state as well as ensure that each certificate issued off a issuer reaches a ready state. The issuers with the different certificates is verified to be working for both cluster and namespace issuers.
 
-For the most part, updating end-to-end will be updating these "issuer specs" and "certificate specs" which reside within e2e/e2e_test.go. If the test need updating beyond that, the core logic for the test is also embedded in e2e/e2e_test.go. The other files within the e2e folder are mainly utilities that shouldn't require frequent update.
-
+For the most part, updating end-to-end will be updating these "issuer specs" and "certificate specs" which reside within e2e/e2e_test.go. If the test need updating beyond that, the core logic for the test is also embedded in e2e/e2e_test.go. The other files within the e2e folder are mainly utilities that shouldn't require frequent update
 
 ## Supported workflows
 
