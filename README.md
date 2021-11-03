@@ -163,7 +163,15 @@ After creating this role run ```export OIDC_IAM_ROLE=<IAM role arn you created a
 
 Getting IRSA to work on Kind was heavily inspired by the following blog: https://reece.tech/posts/oidc-k8s-to-aws/
 
+If you want to also test that cross account issuers are working, you will need:
+
+\- A seperate AWS account that has a role that trust the caller who kicks off the end-to-end test via the CLI, the role will need a policy with the following permissions
+- ```acm-pca:*```: This is so the test can create a Private CA is the other account
+- ```ram:GetResourceShareAssociations```, ```ram:CreateResourceShare```, and ```ram:DeleteResourceShare```: These allow the creation of a CA that can be shared with the source (caller) account
+- After creating this role you will need to run ```export PLUGIN_CROSS_ACCOUNT_ROLE=<name of the role you created above>```. If you do not do this, you will see a message about cross account testing being skipped due to this enviornment variable not being set.
+
 Soon these test should be automatically run on each PR, but for the time being each PR will have a core-collaborator for the project run the tests manually to ensure no regressions on the supported workflows
+
 
 ### Contributing to the End-to-End test
 
