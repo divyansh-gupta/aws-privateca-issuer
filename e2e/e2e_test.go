@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -22,7 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 )
 
 var (
@@ -50,18 +48,14 @@ type certTemplate struct {
 }
 
 func TestMain(m *testing.M) {
-	/*
-	* Setup clients to interact with Kubernetes cluster
-	 */
-
 	//setup k8 client
 	//kubeconfig files will be gathered from the home directory
-	home := homedir.HomeDir()
-	kubeconfig := filepath.Join(home, ".kube", "config")
+	// tmp/pca_kubeconfig is auto populated if creating cluster from makefile
+	kubeconfig := "/tmp/pca_kubeconfig"
 
 	clientConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		panic(err.Error())
+		panic("Ensure that that the kubeconfig for the cluster that is being tested is placed in /tmp/pca_kubeconfig")
 	}
 
 	clientset, err = kubernetes.NewForConfig(clientConfig)

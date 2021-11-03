@@ -80,11 +80,11 @@ run: generate fmt vet lint manifests
 
 # Install CRDs into a cluster
 install: manifests kustomize
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	$(KUSTOMIZE) build config/crd | kubectl apply -f - --kubeconfig=${TEST_KUBECONFIG_LOCATION}
 
 # Uninstall CRDs from a cluster
 uninstall: manifests kustomize
-	$(KUSTOMIZE) build config/crd | kubectl delete -f -
+	$(KUSTOMIZE) build config/crd | kubectl delete -f - --kubeconfig=${TEST_KUBECONFIG_LOCATION}
 
 .PHONY: ${INSTALL_YAML} kustomize
 ${INSTALL_YAML}: kustomize
@@ -96,11 +96,11 @@ ${INSTALL_YAML}: kustomize
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: ${INSTALL_YAML}
-	kubectl apply -f ${INSTALL_YAML}
+	kubectl apply -f ${INSTALL_YAML} --kubeconfig=${TEST_KUBECONFIG_LOCATION}
 
 # UnDeploy controller from the configured Kubernetes cluster in ~/.kube/config
 undeploy:
-	$(KUSTOMIZE) build config/default | kubectl delete -f -
+	$(KUSTOMIZE) build config/default | kubectl delete -f - --kubeconfig=${TEST_KUBECONFIG_LOCATION}
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
@@ -187,6 +187,7 @@ REGISTRY_PORT := 5000
 LOCAL_IMAGE := "localhost:${REGISTRY_PORT}/aws-privateca-issuer"
 NAMESPACE := aws-privateca-issuer
 SERVICE_ACCOUNT := ${NAMESPACE}-sa
+TEST_KUBECONFIG_LOCATION := /tmp/pca_kubeconfig
 
 create-local-registry:
 	RUNNING=$$(docker inspect -f '{{.State.Running}}' ${REGISTRY_NAME} 2>/dev/null || true)
@@ -213,12 +214,14 @@ kind-cluster: ${KIND}
 
 	${KIND} get clusters | grep ${K8S_CLUSTER_NAME} || \
 	${KIND} create cluster --name ${K8S_CLUSTER_NAME} --config=/tmp/config.yaml
+	${KIND} get kubeconfig --name ${K8S_CLUSTER_NAME} > ${TEST_KUBECONFIG_LOCATION}
 	docker network connect "kind" ${REGISTRY_NAME} || true
-	kubectl apply -f e2e/kind_config/registry_configmap.yaml
+	kubectl apply -f e2e/kind_config/registry_configmap.yaml --kubeconfig=${TEST_KUBECONFIG_LOCATION}
 	#Create namespace and service account
-	kubectl get namespace ${NAMESPACE} || kubectl create namespace ${NAMESPACE}
-	kubectl get serviceaccount ${SERVICE_ACCOUNT} -n ${NAMESPACE} || \
-	kubectl create serviceaccount ${SERVICE_ACCOUNT} -n ${NAMESPACE}
+	kubectl get namespace ${NAMESPACE} --kubeconfig=${TEST_KUBECONFIG_LOCATION} || \
+	kubectl create namespace ${NAMESPACE} --kubeconfig=${TEST_KUBECONFIG_LOCATION}
+	kubectl get serviceaccount ${SERVICE_ACCOUNT} -n ${NAMESPACE} --kubeconfig=${TEST_KUBECONFIG_LOCATION} || \
+	kubectl create serviceaccount ${SERVICE_ACCOUNT} -n ${NAMESPACE} --kubeconfig=${TEST_KUBECONFIG_LOCATION}
 
 .PHONY: setup-eks-webhook
 setup-eks-webhook:
@@ -228,18 +231,19 @@ setup-eks-webhook:
 		exit 1; \
 	fi
 	#Get open id configuration from API server
-	kubectl apply -f e2e/kind_config/unauth_role.yaml
-	APISERVER=$$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
-	TOKEN=$$(kubectl get secret $(kubectl get serviceaccount default -o jsonpath='{.secrets[0].name}') -o jsonpath='{.data.token}' | base64 --decode )
+	kubectl apply -f e2e/kind_config/unauth_role.yaml --kubeconfig=${TEST_KUBECONFIG_LOCATION}
+	APISERVER=$$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' --kubeconfig=${TEST_KUBECONFIG_LOCATION})
+	TOKEN=$$(kubectl get secret $(kubectl get serviceaccount default -o jsonpath='{.secrets[0].name}' --kubeconfig=${TEST_KUBECONFIG_LOCATION}) \
+	-o jsonpath='{.data.token}' --kubeconfig=${TEST_KUBECONFIG_LOCATION} | base64 --decode )
 	curl $$APISERVER/.well-known/openid-configuration --header "Authorization: Bearer $$TOKEN" --insecure -o openid-configuration
 	curl $$APISERVER/openid/v1/jwks --header "Authorization: Bearer $$TOKEN" --insecure -o jwks
 	#Put idP configuration in public S3 bucket
 	aws s3 cp --acl public-read jwks s3://$$OIDC_S3_BUCKET_NAME/cluster/my-oidc-cluster/openid/v1/jwks
 	aws s3 cp --acl public-read openid-configuration s3://$$OIDC_S3_BUCKET_NAME/cluster/my-oidc-cluster/.well-known/openid-configuration
 	sleep 60
-	kubectl apply -f e2e/kind_config/install_eks.yaml
-	kubectl wait --for=condition=Available --timeout 300s deployment pod-identity-webhook
-	kubectl annotate serviceaccount ${SERVICE_ACCOUNT} -n ${NAMESPACE} eks.amazonaws.com/role-arn=$$OIDC_IAM_ROLE
+	kubectl apply -f e2e/kind_config/install_eks.yaml --kubeconfig=${TEST_KUBECONFIG_LOCATION}
+	kubectl wait --for=condition=Available --timeout 300s deployment pod-identity-webhook --kubeconfig=${TEST_KUBECONFIG_LOCATION}
+	kubectl annotate serviceaccount ${SERVICE_ACCOUNT} -n ${NAMESPACE} eks.amazonaws.com/role-arn=$$OIDC_IAM_ROLE --kubeconfig=${TEST_KUBECONFIG_LOCATION}
 
 .PHONY: install-eks-webhook
 install-eks-webhook: setup-eks-webhook upgrade-local
@@ -254,8 +258,8 @@ kind-export-logs:
 
 .PHONY: deploy-cert-manager
 deploy-cert-manager: ## Deploy cert-manager in the configured Kubernetes cluster in ~/.kube/config
-	kubectl apply --filename=https://github.com/jetstack/cert-manager/releases/download/v${CERT_MANAGER_VERSION}/cert-manager.yaml
-	kubectl wait --for=condition=Available --timeout=300s apiservice v1.cert-manager.io
+	kubectl apply --filename=https://github.com/jetstack/cert-manager/releases/download/v${CERT_MANAGER_VERSION}/cert-manager.yaml --kubeconfig=${TEST_KUBECONFIG_LOCATION}
+	kubectl wait --for=condition=Available --timeout=300s apiservice v1.cert-manager.io --kubeconfig=${TEST_KUBECONFIG_LOCATION}
 
 .PHONY: install-local
 install-local: docker-build docker-push-local
