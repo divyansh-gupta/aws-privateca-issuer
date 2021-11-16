@@ -30,7 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/service/acmpca"
 	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
-	api "github.com/cert-manager/aws-privateca-issuer/pkg/api/v1beta1"
+	injections "github.com/cert-manager/aws-privateca-issuer/pkg/api/injections"
 	cmapi "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -76,7 +76,7 @@ func StoreProvisioner(name types.NamespacedName, provisioner GenericProvisioner)
 func NewProvisioner(config aws.Config, arn string) (p *PCAProvisioner) {
 	return &PCAProvisioner{
 		pcaClient: acmpca.NewFromConfig(config, acmpca.WithAPIOptions(
-			middleware.AddUserAgentKeyValue("aws-privateca-issuer", api.GroupVersion.Version),
+			middleware.AddUserAgentKeyValue("aws-privateca-issuer", injections.PlugInVersion),
 		)),
 		arn: arn,
 	}
@@ -96,9 +96,9 @@ func (p *PCAProvisioner) Sign(ctx context.Context, cr *cmapi.CertificateRequest)
 		return nil, nil, fmt.Errorf("failed to decode CSR")
 	}
 
-	validityDays := int64(30)
+	validityExpiration := int64(time.Now().Unix()) + 30*24*3600
 	if cr.Spec.Duration != nil {
-		validityDays = int64(cr.Spec.Duration.Hours() / 24)
+		validityExpiration += int64(cr.Spec.Duration.Hours()) * 3600
 	}
 
 	tempArn := templateArn(p.arn, cr.Spec)
@@ -117,8 +117,8 @@ func (p *PCAProvisioner) Sign(ctx context.Context, cr *cmapi.CertificateRequest)
 		TemplateArn:             aws.String(tempArn),
 		Csr:                     cr.Spec.Request,
 		Validity: &acmpcatypes.Validity{
-			Type:  acmpcatypes.ValidityPeriodTypeDays,
-			Value: &validityDays,
+			Type:  acmpcatypes.ValidityPeriodTypeAbsolute,
+			Value: &validityExpiration,
 		},
 		IdempotencyToken: aws.String(token),
 	}

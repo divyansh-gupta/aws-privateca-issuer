@@ -1,6 +1,6 @@
 # The version which will be reported by the --version argument of each binary
 # and which will be used as the Docker image tag
-VERSION ?= $(shell git describe --tags)
+VERSION ?= $(shell git describe --tags | awk -F"-" '{print $$1}')
 
 # Default bundle image tag
 BUNDLE_IMG ?= controller-bundle:$(VERSION)
@@ -70,9 +70,14 @@ e2etest:
 	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/v0.7.0/hack/setup-envtest.sh
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test -v ./e2e/... -coverprofile cover.out
 
+helm-test:
+	$$SHELL e2e/helm_test.sh
+
 # Build manager binary
 manager: generate fmt vet lint
-	go build -o bin/manager main.go
+	go build \
+	-ldflags="-X github.com/cert-manager/aws-privateca-issuer/pkg/api/injections.PlugInVersion=${VERSION}" \
+	-o bin/manager main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet lint manifests
@@ -125,7 +130,7 @@ generate: controller-gen
 # Build the docker image
 docker-build: test
 	docker build \
-		--build-arg VERSION=$(VERSION) \
+		--build-arg pkg_version=${VERSION} \
 		--tag ${IMG} \
 		--file Dockerfile \
 		${CURDIR}
@@ -263,16 +268,15 @@ deploy-cert-manager: ## Deploy cert-manager in the configured Kubernetes cluster
 
 .PHONY: install-local
 install-local: docker-build docker-push-local
-	helm repo add awspca https://cert-manager.github.io/aws-privateca-issuer
 	#install plugin from local docker repo
 	sleep 15
-	helm install aws-privateca-issuer awspca/aws-privateca-issuer -n ${NAMESPACE} \
+	helm install issuer ./charts/aws-pca-issuer -n ${NAMESPACE} \
 	--set serviceAccount.create=false --set serviceAccount.name=${SERVICE_ACCOUNT} \
 	--set image.repository=${LOCAL_IMAGE} --set image.tag=latest --set image.pullPolicy=Always
 
 .PHONY: uninstall-local
 uninstall-local:
-	helm uninstall aws-privateca-issuer -n ${NAMESPACE}
+	helm uninstall issuer -n ${NAMESPACE}
 
 .PHONY: upgrade-local
 upgrade-local: uninstall-local install-local

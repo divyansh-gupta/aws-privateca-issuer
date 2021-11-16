@@ -33,6 +33,9 @@ This project acts as an addon (see https://cert-manager.io/docs/configuration/ex
         export AWS_SECRET_ACCESS_KEY=<Secret Access Key you generated>
         export AWS_ACCESS_KEY_ID=<Access Key you generated>
 
+2. Validity durations under 24 hours causing failures
+
+    There is currently a known issue that is preventing issuance of certificates with validity durations under 24h due to a typecasting issue from float64 to int64 (https://github.com/cert-manager/aws-privateca-issuer/issues/69). There is an existing pull request to fix this (https://github.com/cert-manager/aws-privateca-issuer/pull/70), but we are holding off on accepting any pull requests until we merge in https://github.com/cert-manager/aws-privateca-issuer/pull/65. To fix this issue until then, please use validity durations that are greater than 24h.
 
 ## Setup
 
@@ -104,10 +107,22 @@ Please note that if you are using [KIAM](https://github.com/uswitch/kiam) for au
 
 There is a custom AWS authentication method we have coded into our plugin that allows a user to define a [Kubernetes secret](https://kubernetes.io/docs/concepts/configuration/secret/) with AWS Creds passed in, example [here](config/samples/secret.yaml). The user applies that file with their creds and then references the secret in their Issuer CRD when running the plugin, example [here](config/samples/awspcaclusterissuer_ec/_v1beta1_awspcaclusterissuer_ec.yaml#L8-L10).
 
-## Running the tests
+## Understanding/Running the tests
 
 ### Running the Unit Tests
 Running ```make test``` will run the written unit test
+
+If you run into an issue like
+
+```
+/home/linuxbrew/.linuxbrew/Cellar/go/1.17/libexec/src/net/cgo_linux.go:13:8: no such package located
+```
+
+This can be fixed with a
+
+```
+brew install gcc@5
+```
 
 ### Running the End-To-End Tests
 
@@ -123,11 +138,26 @@ The easiest way to get the test to run would be to use the follow make targets:
 
 Before running ```make cluster``` we will need to do the following:
 
+\- Have the following tools on your machine:
+* [Git](https://git-scm.com/)
+* [Golang v1.13+](https://golang.org/)
+* [Docker v17.03+](https://docs.docker.com/install/)
+* [Kind v0.9.0+](https://kind.sigs.k8s.io/docs/user/quick-start/) -> This will be installed via running the test
+* [Kubectl v1.11.3+](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+* [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+* [Helm](https://helm.sh/docs/intro/install/)
+
 \- (Optional) You will need a AWS IAM User to test authentication via K8 secrets. You can provide an already existing user into the test via ```export PLUGIN_USER_NAME_OVERRIDE=<IAM User Name>```.  This IAM User should have a policy attached to it that follows with the policy listed in [Configuration](#configuration). This user will be used to test authentication in the plugin via K8 secrets.
 
-\- An S3 Bucket with [BPA disabled](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html) in us-east-1. After creating the bucket run ```export OIDC_S3_BUCKET_NAME=<Name of bucket you just created```
+\- An S3 Bucket with [BPA disabled](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html) in us-east-1. After creating the bucket run ```export OIDC_S3_BUCKET_NAME=<Name of bucket you just created>```
 
-\- [An AWS IAM OIDC Provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html). Set the provider url of the bucket to be ```$OIDC_S3_BUCKET_NAME.s3.us-east-1.amazonaws.com/cluster/my-oidc-cluster]```. Set the audience to be ```sts.amazonaws.com```. Before creating the OIDC provider, set a temporary value for $OIDC_IAM_ROLE (```export OIDC_IAM_ROLE=arn:aws:iam::000000000000:role/oidc-kind-cluster-role``` and run ```make cluster && make install-eks-cluster && make kind-cluster-delete```). This needs to be done otherwise you may see an error complaining about the absense of a file .well-known/openid-configuration. Running these commands helps bootstrap the S3 bucket so that the OIDC provider can be created.
+\- You will need AWS credentials loaded into your terminal that, via the CLI, minimally allow the following actions via an IAM policy:
+- ```acm-pca:*``` : This is so that Private CA's maybe be created and deleted via the appropriate APIs for testing
+- If you did not provider a user via PLUGIN_USER_NAME_OVERRIDE, the test suite can create a user for you. This will require the following permissions: ```iam:CreatePolicy```,```iam:CreateUser```, and ```iam:AttachUserPolicy```
+- ```iam:CreateAccessKey``` and ```iam:DeleteAccessKey```: This allow us to create and delete access keys to be used to validate that authentication via K8 secrets is functional. If the user was set via $PLUGIN_USER_NAME_OVERRIDE
+- ```s3:PutObject``` and ```s3::PutObjectAcl``` these can be scoped down to the s3 bucket you created above
+
+\- [An AWS IAM OIDC Provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html). Before creating the OIDC provider, set a temporary value for $OIDC_IAM_ROLE (```export OIDC_IAM_ROLE=arn:aws:iam::000000000000:role/oidc-kind-cluster-role``` and run ```make cluster && make install-eks-webhook && make kind-cluster-delete```). This needs to be done otherwise you may see an error complaining about the absence of a file .well-known/openid-configuration. Running these commands helps bootstrap the S3 bucket so that the OIDC provider can be created. Set the provider url of the OIDC provider to be ```$OIDC_S3_BUCKET_NAME.s3.us-east-1.amazonaws.com/cluster/my-oidc-cluster```. Set the audience to be ```sts.amazonaws.com```.
 
 \- An IAM role that has a trust relationship with the IAM OIDC Provider that was just created. An inline policy for this role can be grabbed from [Configuration](#configuration) except you can't scope it to a particular CA since those will be created during the test run. This role will be used to test authentication in the plugin via IRSA. The trust relationship should look something like:
 ```
@@ -142,7 +172,7 @@ Before running ```make cluster``` we will need to do the following:
 	   "Action": "sts:AssumeRoleWithWebIdentity",  
 	   "Condition": {  
 	     "StringEquals": {  
-	       "${OIDC_URL}:sub:system:serviceaccount:aws-privateca-issuer:aws-privateca-issuer-sa"  
+	       "${OIDC_URL}:sub": "system:serviceaccount:aws-privateca-issuer:aws-privateca-issuer-sa"  
 	     }  
 	   }  
 	 }  
@@ -151,17 +181,17 @@ Before running ```make cluster``` we will need to do the following:
 ```
 After creating this role run ```export OIDC_IAM_ROLE=<IAM role arn you created above>```
 
-\- You will need AWS credentials loaded into your terminal that, via the CLI, minimally allow the following actions via an IAM policy:
-- ```acm-pca:*``` : This is so that Private CA's maybe be created and deleted via the appropriate APIs for testing
-- If you did not provider a user via PLUGIN_USER_NAME_OVERRIDE, the test suite can create a user for you. This will require the following permissions: ```iam:CreatePolicy```,```iam:CreateUser```, and ```iam:AttachUserPolicy```
-- ```iam:CreateAccessKey``` and ```iam:DeleteAccessKey```: This allow us to create and delete access keys to be used to validate that authentication via K8 secrets is functional. If the user was set via $PLUGIN_USER_NAME_OVERRIDE
-- ```s3:PutObject``` and ```s3::PutObjectAcl``` these can be scoped down the the s3 bucket you created above
+\- ```make cluster``` recreate the cluster with all the appropriate enviornment variables set
 
 \- ```make install-eks-webhook``` will install a webhook in that kind cluster that will enable the use of IRSA
 
-\- ```make e2etest``` will run end-to-end test against the kind cluster created via ```make cluster```. 
+\- ```make e2etest``` will run end-to-end test against the kind cluster created via ```make cluster```.
+
+\- After you update controller code locally, an easy way to redeploy the new controller code and re-run end-to-end test is to run:: ```make upgrade-local && make e2etest```
 
 Getting IRSA to work on Kind was heavily inspired by the following blog: https://reece.tech/posts/oidc-k8s-to-aws/
+
+
 
 If you want to also test that cross account issuers are working, you will need:
 
