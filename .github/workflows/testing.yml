@@ -7,14 +7,12 @@ on:
   # Triggers the workflow on push or pull request events but only for the master branch
   pull_request_target:
     types: [ labeled ]
-  push:
-    branches: [ master ]
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
   start-runner:
-    #if: contains(github.event.pull_request.labels.*.name, 'safe to test')
+    if: contains(github.event.pull_request.labels.*.name, 'safe to test')
     runs-on: ubuntu-latest
     outputs:
       label: ${{ steps.start-ec2-runner.outputs.label }}
@@ -58,7 +56,7 @@ jobs:
             ]
 
   do-the-job:
-    #if: contains(github.event.pull_request.labels.*.name, 'safe to test')
+    if: contains(github.event.pull_request.labels.*.name, 'safe to test')
     name: Do the job on the runner
     needs: start-runner # required to start the main job when the runner is ready
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
@@ -69,8 +67,8 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-#           ref: ${{ github.event.pull_request.head.ref }}
-#           repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
       - name: Install Go
         run: |
           mkdir /home/ec2-user/.cache
@@ -168,7 +166,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'safe to test') && always() }} # required to stop the runner even if the error happened in the previous jobs
     steps:
       - name: Setup AWS Credentials
         uses: aws-actions/configure-aws-credentials@master
