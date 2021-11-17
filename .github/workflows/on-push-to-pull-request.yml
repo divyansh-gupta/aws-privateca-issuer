@@ -4,7 +4,7 @@ on:
   pull_request_target:
 
 jobs:
-  sync-crds:
+  remove-safe-to-test-label:
     runs-on: ubuntu-latest
     steps:
       - name: Remove safe to test label
