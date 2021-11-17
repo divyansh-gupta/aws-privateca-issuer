@@ -4,6 +4,7 @@ on:
   pull_request_target:
 
 jobs:
+
   remove-safe-to-test-label:
     runs-on: ubuntu-latest
     steps:
