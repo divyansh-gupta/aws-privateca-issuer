@@ -341,8 +341,7 @@ func TestPCASign(t *testing.T) {
 				},
 			}
 
-			leaf, chain, err := tc.provisioner.Sign(context.TODO(), cr)
-
+			leaf, chain, err := tc.provisioner.Sign(context.TODO(), cr, nil)
 			if tc.expectFailure && err == nil {
 				fmt.Print(err.Error())
 				assert.Fail(t, "Expected an error but received none")
