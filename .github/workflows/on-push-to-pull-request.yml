@@ -1,0 +1,13 @@
+name: on-push-to-pull-request
+
+on:
+  pull_request_target:
+
+jobs:
+  sync-crds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove safe to test label
+        uses: divyansh-gupta/action-remove-labels@2ce5d41b4b6aa8503e285553f75ed56e0a40bae0
+        with:
+          labels: safe to test
