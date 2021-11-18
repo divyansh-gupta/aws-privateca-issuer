@@ -7,12 +7,14 @@ on:
 
 env:
   ECR_REPO: public.ecr.aws/k1n1h4h4
-  GITHUB_REF: refs/tags/1.1.1.1
   
 jobs:
   build:
-    name: Build
+    name: release
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
