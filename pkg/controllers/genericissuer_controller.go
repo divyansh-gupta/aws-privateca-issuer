@@ -165,6 +165,7 @@ func (r *GenericIssuerReconciler) getConfig(ctx context.Context, spec *api.AWSPC
 		return config.LoadDefaultConfig(ctx,
 			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(string(accessKey), string(secretKey), "")),
 		)
+
 	} else if spec.Region != "" {
 		return config.LoadDefaultConfig(ctx,
 			config.WithRegion(spec.Region),
