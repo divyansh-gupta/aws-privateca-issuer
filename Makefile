@@ -2,6 +2,7 @@
 # and which will be used as the Docker image tag
 VERSION ?= $(shell git describe --tags | awk -F"-" '{print $$1}')
 
+
 # Default bundle image tag
 BUNDLE_IMG ?= controller-bundle:$(VERSION)
 
